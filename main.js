@@ -15,8 +15,8 @@ gimx.prototype.release = function(button) {
 	this.normalizedSend(button, 0);
 }
 
-gimx.prototype.press = function(button) {
-	this.normalizedSend(button);
+gimx.prototype.press = function(button, mod) {
+	this.normalizedSend(button, mod);
 }
 
 gimx.prototype.normalizedSend = function(button, mod) {
