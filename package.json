@@ -1,0 +1,14 @@
+{
+  "name": "node-gimx",
+  "version": "1.0.0",
+  "description": "Send commands to gimx via js",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "gimx"
+  ],
+  "author": "Stephen Poole",
+  "license": "ISC"
+}
