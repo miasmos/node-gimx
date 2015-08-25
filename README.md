@@ -1,6 +1,23 @@
 # node-gimx
 Send commands to gimx via js.  
   
+  
+#Quickstart  
+    var gimx = require('./main.js');  
+    var g = new gimx({
+    	path: 'C:\\Program Files\\GIMX\\',
+    	host: '127.0.0.1',
+    	port: '51914'
+    });  
+    g.press("cross");  
+    
+  
+#Options  
+path - path to gimx.exe  
+host - host of remote gimx  
+port - port of remote gimx  
+  
+  
 #Methods  
 Press(button, pressure)  
 string button - a valid button  
