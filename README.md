@@ -1,10 +1,11 @@
 # node-gimx
-Send commands to gimx via js  
+Send commands to gimx via js.  
   
 #Methods  
 Press(button, pressure)  
 string button - a valid button  
 number pressure - a number from 0 to 1 representing how far down the button is pushed  
+*A press call automatically releases all other buttons. This is a feature of gimx.  
   
 Release(button)  
 string button - a valid button  
