@@ -12,19 +12,47 @@ Send commands to gimx via js.
     g.press("cross");  
     
   
+#Macros  
+Macros are a chainable method of combining multiple commands into a set of instructions. press(), release(), hold(), and wait() are supported.  
+  
+To add a macro:  
+    g.macro('test')
+      press/wait/hold/release
+      .add();  
+      
+To execute a macro:
+    g.macro('test')
+      .run()
+  
+  
+  
 #Options  
-path - path to gimx.exe  
-host - host of remote gimx  
-port - port of remote gimx  
+path - string, path to gimx.exe  
+host - string, host of remote gimx  
+port - string, port of remote gimx  
+debug - boolean, prevents sending calls to gimx
   
   
 #Methods  
+Macro(name)  
+string name - name of the macro  
+  
+Add()
+*To be chained with macro()
+  
+Run(repeat)  
+boolean repeat - if set to true, repeats the macro after finishing 
+*To be chained with macro()
+  
 Press(button, pressure)  
 string button - a valid button  
 optional number pressure - a number from 0 to 1 representing how far down the button is pushed. Defaults to 1.  
 *A press call automatically releases all other buttons. This is a feature of gimx.  
   
 Release(button)  
+string button - a valid button  
+  
+Hold(button)  
 string button - a valid button  
   
   
