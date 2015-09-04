@@ -17,7 +17,11 @@ g.on('sendfailure', function() {
 g.press('left');*/
 
 g.macro('left')
-	.press('left').wait(200).release('left')
+	.press('left').wait(200)
+	.press('left').wait(200)
+	.press('right').wait(200)
+	.press('left').wait(200)
+	.press('left').wait(200)
 	.add();
 
 g.macro('cross')
@@ -26,9 +30,9 @@ g.macro('cross')
 
 g.macro('restartapp')
 	.press('PS').wait(2000)
-	.press('cross').wait(100).release('cross').wait(1000)
-	.press('cross').wait(100).release('cross').wait(2500)
+	.hold('cross').wait(1000)
+	.press('cross').wait(2500)
 	.press('cross')
 	.add();
 
-g.macro('restartapp').wait(100).macro('left').macro('left').macro('cross').run();
+g.macro('restartapp').run();

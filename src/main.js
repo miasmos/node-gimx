@@ -2,10 +2,8 @@ var messenger = require('./messenger');
 var exec = require('child_process').exec;
 
 //TODO support for multiple presses in one press/release call, ex. press('up,down') or press('up down')
-//TODO combine multiple presses at the same time into the same exec call
 //TODO support for emitting events when a macro completes
-//TODO implicit release on button presses after a short time? (would rather press a button than hold it down most of the time)
-//TODO release a button if used in succession and release isn't called
+
 class gimx extends messenger {
 	constructor(opts={}) {
 		super();
@@ -33,7 +31,16 @@ class gimx extends messenger {
 		if (this._hasChained) {
 			this.tempChain.push(['press', button, mod]);
 		} else {
-			this.normalizedSend(button, mod);
+			this._normalizedSend([{button: button, mod: mod}]);
+		}
+		return this;
+	}
+
+	hold(button, mod) {
+		if (this._hasChained) {
+			this.tempChain.push(['hold', button]);
+		} else {
+			this._normalizedSend([{button: button, mod: mod}]);
 		}
 		return this;
 	}
@@ -42,7 +49,7 @@ class gimx extends messenger {
 		if (this._hasChained) {
 			this.tempChain.push(['release', button]);
 		} else {
-			this.normalizedSend(button, 0);
+			this._normalizedSend([{button: button, mod: 0}]);
 		}
 		return this;
 	}
@@ -76,13 +83,12 @@ class gimx extends messenger {
 			let value1 = this.tempChain[i][1];
 			let value2 = this.tempChain[i][2];
 
-			if ((action == 'press' || action == 'release') && !this._isValidButton(value1)) {
+			if ((action == 'press' || action == 'release' || action == 'hold') && !this._isValidButton(value1)) {
 				this.log(`Invalid button '${value1}' found in macro ${macroName}.${action}()`, 2);
 			}
 		}
 		this.macros[macroName] = this.tempChain;
 		this.tempChain = [];
-		console.log(this.macros);
 	}
 
 	run(repeat = false) {
@@ -92,18 +98,21 @@ class gimx extends messenger {
 		var macroName = this.tempChain[0][1];
 		this.repeat = repeat;
 
+		console.log(this.macros);
+
 		//parse macro sequence
 		for (var i in this.tempChain) {
 			let action = this.tempChain[i][0];
 			let value1 = this.tempChain[i][1];
 			let value2 = this.tempChain[i][2];
 
-			if ((action == 'press' || action == 'release') && !this._isValidButton(value1)) {
+			if ((action == 'press' || action == 'release' || action == 'hold') && !this._isValidButton(value1)) {
 				this.log(`Invalid button '${value1}' found in macro ${macroName}.${action}()`, 2);
 			}
 		}
 
 		parseMacro(this.tempChain);
+		let lastButton, lastAction;
 
 		function parseMacro(macro) {
 			for (var i in macro) {
@@ -125,11 +134,31 @@ class gimx extends messenger {
 					continue;
 				}
 
+				//release a button after a short time
+				if ((action == 'release' && lastAction == 'press' && value1 != lastButton) || (action !== 'release' && lastAction == 'press')) {
+					let key = {
+						action: 'release',
+						value1: lastButton,
+						value2: value2
+					};
+
+					let tempTime = self.timelineIntervals[self.timelineIntervals.length-1] + 10;
+
+					if (tempTime in self.timeline) {
+						self.timeline[tempTime].push(key);
+					} else {
+						self.timeline[tempTime] = [key];
+						self.timelineIntervals.push(tempTime);
+					}
+				}
+
 				let key = {
 					action: action,
 					value1: value1,
 					value2: value2,
 				};
+				lastButton = value1;
+				lastAction = action;
 
 				if (self.globalTime in self.timeline) {
 					self.timeline[self.globalTime].push(key);
@@ -140,6 +169,22 @@ class gimx extends messenger {
 			}
 		}
 
+		//if the very last action is a press, add a release
+		let lastIndex = this.timeline[this.timelineIntervals[this.timelineIntervals.length-1]];
+		lastIndex = lastIndex[lastIndex.length-1];
+
+		if (lastIndex.action == 'press') {
+			let key = {
+				action: 'release',
+				value1: lastIndex.value1,
+				value2: undefined
+			}
+
+			self.globalTime += 10;
+			self.timeline[self.globalTime] = [key];
+			self.timelineIntervals.push(self.globalTime);
+		}
+
 		console.log(this.timeline);
 		console.log(this.timelineIntervals);
 		this.globalTotalTime = this.globalTime;
@@ -147,60 +192,75 @@ class gimx extends messenger {
 		this.globalCallback = setInterval(function(){self._tick()}, this.intervalTime);
 	}
 
-	normalizedSend(button, mod) {
-		if (typeof mod === 'undefined') mod = 1;
-		if (mod < 0 && mod > 1) {
-			this.log('Normalized send requires a mod between 0 and 1, ignoring', 1);
-			return;
-		}
-		if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
-			mod *= 255; mod -= 128;
-		} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
-			mod *= 511; mod -= 256;
-		} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
-			if (mod < 1) mod = 0;
-			else mod = 255;
-		} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || 
-			button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
-			mod *= 255;
+	_normalizedSend(buttons) {
+		for (var i in buttons) {
+			let mod = buttons[i].mod;
+			let button = buttons[i].button;
+
+			if (typeof mod === 'undefined') mod = 1;
+			if (mod < 0 && mod > 1) {
+				this.log('Normalized send requires a mod between 0 and 1, ignoring', 1);
+				return;
+			}
+			if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
+				mod *= 255; mod -= 128;
+			} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
+				mod *= 511; mod -= 256;
+			} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
+				if (mod < 1) mod = 0;
+				else mod = 255;
+			} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || 
+				button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
+				mod *= 255;
+			}
+
+			buttons[i].mod = mod;
 		}
 
-		this.send(button, mod);
+		this._send(buttons);
 	}
 
-	send(button, mod) {
-		var lo, hi, range = true;
-		if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
-			lo = -128; hi = 127;
-		} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
-			lo = -512; hi = 511;
-		} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
-			lo = 0; hi = 255; range = false;
-		} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || 
-			button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
-			lo = 0; hi = 255;
-		} else {
-			this.log('Button '+button+' not recognized, ignoring', 1);
-			return;
-		}
+	_send(buttons) {
+		let eventString = '';
 
-		if (range) {
-			if (!(mod >= lo && mod <= hi)) {
-				this.log(button+' has a range of '+lo+' to '+hi+', given '+mod+', ignoring', 1);
+		for (var i in buttons) {
+			let button = buttons[i].button;
+			let mod = buttons[i].mod;
+			let lo, hi, range = true;
+
+			if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
+				lo = -128; hi = 127;
+			} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
+				lo = -512; hi = 511;
+			} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
+				lo = 0; hi = 255; range = false;
+			} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || 
+				button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
+				lo = 0; hi = 255;
+			} else {
+				this.log(`Button ${button} not recognized, ignoring`, 1);
 				return;
 			}
-		} else {
-			if (mod != lo && mod != hi) {
-				this.log(button+'must be either '+lo+' or '+hi+', given '+mod+', ignoring', 1);
-				return;
+
+			if (range) {
+				if (!(mod >= lo && mod <= hi)) {
+					this.log(`${button} has a range of ${lo} to ${hi}, given ${mod}, ignoring`, 1);
+					return;
+				}
+			} else {
+				if (mod != lo && mod != hi) {
+					this.log(`${button} must be either ${lo} or ${hi}, given ${mod}, ignoring`, 1);
+					return;
+				}
 			}
+
+			eventString += `--event "${button}(${mod})" `;
 		}
 
-		this.lastPressed = button;
 		if (!this.debug) {
-			this._exec(`${this.path} --event "${button}(${mod})" -d ${this.remote_host}:${this.remote_port}`, button, mod);
+			this._exec(`${this.path} ${eventString}-d ${this.remote_host}:${this.remote_port}`);
 		} else {
-			this.log(`${this.globalTime}: sent ${button}(${mod})`)
+			this.log(`${this.globalTime}: ${this.path} ${eventString}-d ${this.remote_host}:${this.remote_port}`);
 		}
 	}
 
@@ -216,21 +276,15 @@ class gimx extends messenger {
 		if (this.globalTime >= this.timelineIntervals[this.currentTimelineIndex]) {
 			var index = this.timelineIntervals[this.currentTimelineIndex].toString();
 
+			let temp = [];
 			for (var i in this.timeline[index]) {
-				let action = this.timeline[index][i]['action'];
-				let value1 = this.timeline[index][i]['value1'];
-				let value2 = this.timeline[index][i]['value2'];
-
-				switch(action) {
-					case 'press':
-						this.press(value1, value2);
-						break;
-					case 'release':
-						this.release(value1);
-						break;
-				}
+				temp.push({
+					button: this.timeline[index][i]['value1'],
+					mod: this.timeline[index][i]['action'] == 'release' ? 0 : this.timeline[index][i]['value2']
+				});
 			}
 
+			this._normalizedSend(temp);
 			this.currentTimelineIndex++;
 		}
 
@@ -250,7 +304,22 @@ class gimx extends messenger {
 		this.globalTime += this.intervalTime;
 	}
 
-	_exec(cmd, btn, mod) {
+	_hasMultipleButtons(buttons, pressed=true) {
+		let temp;
+		let ret = [];
+		if (buttons.indexOf(',') > -1) temp = buttons.split(',');
+		else if (buttons.indexOf(' ') > -1) temp = buttons.split(' ');
+		else return false;
+
+		for (var i in temp) {
+			ret.push({
+				button: temp[i],
+				mod: pressed ? 1 : 0
+			});
+		}
+	}
+
+	_exec(cmd) {
 		var self = this;
 		exec(cmd, function(e, out, err) {
 			if (e || err) {
@@ -258,8 +327,8 @@ class gimx extends messenger {
 				self.log(e || err, 2);
 			}
 
-			self.log('Sent '+btn+'('+mod+') successfully.');
 			self.emit('sendsuccess');
+			self.log(`${self.globalTime}: ${cmd}`);
 		});
 	}
 

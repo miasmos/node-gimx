@@ -2,7 +2,7 @@
 
 var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
-var _get = function get(_x3, _x4, _x5) { var _again = true; _function: while (_again) { var object = _x3, property = _x4, receiver = _x5; desc = parent = getter = undefined; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x3 = parent; _x4 = property; _x5 = receiver; _again = true; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
+var _get = function get(_x4, _x5, _x6) { var _again = true; _function: while (_again) { var object = _x4, property = _x5, receiver = _x6; desc = parent = getter = undefined; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x4 = parent; _x5 = property; _x6 = receiver; _again = true; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
@@ -12,10 +12,7 @@ var messenger = require('./messenger');
 var exec = require('child_process').exec;
 
 //TODO support for multiple presses in one press/release call, ex. press('up,down') or press('up down')
-//TODO combine multiple presses at the same time into the same exec call
 //TODO support for emitting events when a macro completes
-//TODO implicit release on button presses after a short time? (would rather press a button than hold it down most of the time)
-//TODO release a button if used in succession and release isn't called
 
 var gimx = (function (_messenger) {
 	_inherits(gimx, _messenger);
@@ -52,7 +49,17 @@ var gimx = (function (_messenger) {
 			if (this._hasChained) {
 				this.tempChain.push(['press', button, mod]);
 			} else {
-				this.normalizedSend(button, mod);
+				this._normalizedSend([{ button: button, mod: mod }]);
+			}
+			return this;
+		}
+	}, {
+		key: 'hold',
+		value: function hold(button, mod) {
+			if (this._hasChained) {
+				this.tempChain.push(['hold', button]);
+			} else {
+				this._normalizedSend([{ button: button, mod: mod }]);
 			}
 			return this;
 		}
@@ -62,7 +69,7 @@ var gimx = (function (_messenger) {
 			if (this._hasChained) {
 				this.tempChain.push(['release', button]);
 			} else {
-				this.normalizedSend(button, 0);
+				this._normalizedSend([{ button: button, mod: 0 }]);
 			}
 			return this;
 		}
@@ -99,13 +106,12 @@ var gimx = (function (_messenger) {
 				var value1 = this.tempChain[i][1];
 				var value2 = this.tempChain[i][2];
 
-				if ((action == 'press' || action == 'release') && !this._isValidButton(value1)) {
+				if ((action == 'press' || action == 'release' || action == 'hold') && !this._isValidButton(value1)) {
 					this.log('Invalid button \'' + value1 + '\' found in macro ' + macroName + '.' + action + '()', 2);
 				}
 			}
 			this.macros[macroName] = this.tempChain;
 			this.tempChain = [];
-			console.log(this.macros);
 		}
 	}, {
 		key: 'run',
@@ -118,18 +124,22 @@ var gimx = (function (_messenger) {
 			var macroName = this.tempChain[0][1];
 			this.repeat = repeat;
 
+			console.log(this.macros);
+
 			//parse macro sequence
 			for (var i in this.tempChain) {
 				var action = this.tempChain[i][0];
 				var value1 = this.tempChain[i][1];
 				var value2 = this.tempChain[i][2];
 
-				if ((action == 'press' || action == 'release') && !this._isValidButton(value1)) {
+				if ((action == 'press' || action == 'release' || action == 'hold') && !this._isValidButton(value1)) {
 					this.log('Invalid button \'' + value1 + '\' found in macro ' + macroName + '.' + action + '()', 2);
 				}
 			}
 
 			parseMacro(this.tempChain);
+			var lastButton = undefined,
+			    lastAction = undefined;
 
 			function parseMacro(macro) {
 				for (var i in macro) {
@@ -151,11 +161,31 @@ var gimx = (function (_messenger) {
 						continue;
 					}
 
+					//release a button after a short time
+					if (action == 'release' && lastAction == 'press' && value1 != lastButton || action !== 'release' && lastAction == 'press') {
+						var _key = {
+							action: 'release',
+							value1: lastButton,
+							value2: value2
+						};
+
+						var tempTime = self.timelineIntervals[self.timelineIntervals.length - 1] + 10;
+
+						if (tempTime in self.timeline) {
+							self.timeline[tempTime].push(_key);
+						} else {
+							self.timeline[tempTime] = [_key];
+							self.timelineIntervals.push(tempTime);
+						}
+					}
+
 					var key = {
 						action: action,
 						value1: value1,
 						value2: value2
 					};
+					lastButton = value1;
+					lastAction = action;
 
 					if (self.globalTime in self.timeline) {
 						self.timeline[self.globalTime].push(key);
@@ -164,6 +194,22 @@ var gimx = (function (_messenger) {
 						self.timelineIntervals.push(self.globalTime);
 					}
 				}
+			}
+
+			//if the very last action is a press, add a release
+			var lastIndex = this.timeline[this.timelineIntervals[this.timelineIntervals.length - 1]];
+			lastIndex = lastIndex[lastIndex.length - 1];
+
+			if (lastIndex.action == 'press') {
+				var key = {
+					action: 'release',
+					value1: lastIndex.value1,
+					value2: undefined
+				};
+
+				self.globalTime += 10;
+				self.timeline[self.globalTime] = [key];
+				self.timelineIntervals.push(self.globalTime);
 			}
 
 			console.log(this.timeline);
@@ -175,61 +221,76 @@ var gimx = (function (_messenger) {
 			}, this.intervalTime);
 		}
 	}, {
-		key: 'normalizedSend',
-		value: function normalizedSend(button, mod) {
-			if (typeof mod === 'undefined') mod = 1;
-			if (mod < 0 && mod > 1) {
-				this.log('Normalized send requires a mod between 0 and 1, ignoring', 1);
-				return;
-			}
-			if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
-				mod *= 255;mod -= 128;
-			} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
-				mod *= 511;mod -= 256;
-			} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
-				if (mod < 1) mod = 0;else mod = 255;
-			} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
-				mod *= 255;
+		key: '_normalizedSend',
+		value: function _normalizedSend(buttons) {
+			for (var i in buttons) {
+				var mod = buttons[i].mod;
+				var button = buttons[i].button;
+
+				if (typeof mod === 'undefined') mod = 1;
+				if (mod < 0 && mod > 1) {
+					this.log('Normalized send requires a mod between 0 and 1, ignoring', 1);
+					return;
+				}
+				if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
+					mod *= 255;mod -= 128;
+				} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
+					mod *= 511;mod -= 256;
+				} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
+					if (mod < 1) mod = 0;else mod = 255;
+				} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
+					mod *= 255;
+				}
+
+				buttons[i].mod = mod;
 			}
 
-			this.send(button, mod);
+			this._send(buttons);
 		}
 	}, {
-		key: 'send',
-		value: function send(button, mod) {
-			var lo,
-			    hi,
-			    range = true;
-			if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
-				lo = -128;hi = 127;
-			} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
-				lo = -512;hi = 511;
-			} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
-				lo = 0;hi = 255;range = false;
-			} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
-				lo = 0;hi = 255;
-			} else {
-				this.log('Button ' + button + ' not recognized, ignoring', 1);
-				return;
-			}
+		key: '_send',
+		value: function _send(buttons) {
+			var eventString = '';
 
-			if (range) {
-				if (!(mod >= lo && mod <= hi)) {
-					this.log(button + ' has a range of ' + lo + ' to ' + hi + ', given ' + mod + ', ignoring', 1);
+			for (var i in buttons) {
+				var button = buttons[i].button;
+				var mod = buttons[i].mod;
+				var lo = undefined,
+				    hi = undefined,
+				    range = true;
+
+				if (button == 'lstick x' || button == 'lstick y' || button == 'rstick x' || button == 'rstick y') {
+					lo = -128;hi = 127;
+				} else if (button == 'acc x' || button == 'acc y' || button == 'acc z' || button == 'gyro') {
+					lo = -512;hi = 511;
+				} else if (button == 'select' || button == 'start' || button == 'PS' || button == 'l3' || button == 'r3') {
+					lo = 0;hi = 255;range = false;
+				} else if (button == 'up' || button == 'right' || button == 'down' || button == 'left' || button == 'triangle' || button == 'circle' || button == 'cross' || button == 'square' || button == 'l1' || button == 'r1' || button == 'l2' || button == 'r2') {
+					lo = 0;hi = 255;
+				} else {
+					this.log('Button ' + button + ' not recognized, ignoring', 1);
 					return;
 				}
-			} else {
-				if (mod != lo && mod != hi) {
-					this.log(button + 'must be either ' + lo + ' or ' + hi + ', given ' + mod + ', ignoring', 1);
-					return;
+
+				if (range) {
+					if (!(mod >= lo && mod <= hi)) {
+						this.log(button + ' has a range of ' + lo + ' to ' + hi + ', given ' + mod + ', ignoring', 1);
+						return;
+					}
+				} else {
+					if (mod != lo && mod != hi) {
+						this.log(button + ' must be either ' + lo + ' or ' + hi + ', given ' + mod + ', ignoring', 1);
+						return;
+					}
 				}
+
+				eventString += '--event "' + button + '(' + mod + ')" ';
 			}
 
-			this.lastPressed = button;
 			if (!this.debug) {
-				this._exec(this.path + ' --event "' + button + '(' + mod + ')" -d ' + this.remote_host + ':' + this.remote_port, button, mod);
+				this._exec(this.path + ' ' + eventString + '-d ' + this.remote_host + ':' + this.remote_port);
 			} else {
-				this.log(this.globalTime + ': sent ' + button + '(' + mod + ')');
+				this.log(this.globalTime + ': ' + this.path + ' ' + eventString + '-d ' + this.remote_host + ':' + this.remote_port);
 			}
 		}
 	}, {
@@ -244,21 +305,15 @@ var gimx = (function (_messenger) {
 			if (this.globalTime >= this.timelineIntervals[this.currentTimelineIndex]) {
 				var index = this.timelineIntervals[this.currentTimelineIndex].toString();
 
+				var temp = [];
 				for (var i in this.timeline[index]) {
-					var action = this.timeline[index][i]['action'];
-					var value1 = this.timeline[index][i]['value1'];
-					var value2 = this.timeline[index][i]['value2'];
-
-					switch (action) {
-						case 'press':
-							this.press(value1, value2);
-							break;
-						case 'release':
-							this.release(value1);
-							break;
-					}
+					temp.push({
+						button: this.timeline[index][i]['value1'],
+						mod: this.timeline[index][i]['action'] == 'release' ? 0 : this.timeline[index][i]['value2']
+					});
 				}
 
+				this._normalizedSend(temp);
 				this.currentTimelineIndex++;
 			}
 
@@ -278,8 +333,24 @@ var gimx = (function (_messenger) {
 			this.globalTime += this.intervalTime;
 		}
 	}, {
+		key: '_hasMultipleButtons',
+		value: function _hasMultipleButtons(buttons) {
+			var pressed = arguments.length <= 1 || arguments[1] === undefined ? true : arguments[1];
+
+			var temp = undefined;
+			var ret = [];
+			if (buttons.indexOf(',') > -1) temp = buttons.split(',');else if (buttons.indexOf(' ') > -1) temp = buttons.split(' ');else return false;
+
+			for (var i in temp) {
+				ret.push({
+					button: temp[i],
+					mod: pressed ? 1 : 0
+				});
+			}
+		}
+	}, {
 		key: '_exec',
-		value: function _exec(cmd, btn, mod) {
+		value: function _exec(cmd) {
 			var self = this;
 			exec(cmd, function (e, out, err) {
 				if (e || err) {
@@ -287,8 +358,8 @@ var gimx = (function (_messenger) {
 					self.log(e || err, 2);
 				}
 
-				self.log('Sent ' + btn + '(' + mod + ') successfully.');
 				self.emit('sendsuccess');
+				self.log(self.globalTime + ': ' + cmd);
 			});
 		}
 	}, {
