@@ -1,5 +1,5 @@
 # node-gimx
-Send commands to gimx via js.  
+Send commands to gimx via js. Currently, only Playstation is supported.  
   
   
 #Quickstart  
