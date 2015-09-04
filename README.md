@@ -13,7 +13,7 @@ Send commands to gimx via js.
     
   
 #Macros  
-Macros are a chainable method of combining multiple commands into a set of instructions. press(), release(), hold(), and wait() are supported. Additionally, macros can contain other macros.
+Macros are a chainable method of combining multiple commands into a set of instructions. press(), release(), hold(), and wait() are supported.
   
 To add a macro:  
 
@@ -36,6 +36,19 @@ For example, to press left, wait a second, then press right:
     g.macro('test')
       .run()  
   
+Macros can also contain other macros. The following would press left, wait a second, press right, wait a second, press up, wait a second, then press down. :  
+
+    g.macro('test1')
+      .macro('test').wait(1000)
+      .press('up').wait(1000)
+      .press('down')
+      .add()
+    
+    g.macro('test1')
+      .run()
+      
+  
+
 #Options  
 path - string, path to gimx.exe  
 host - string, host of remote gimx  
