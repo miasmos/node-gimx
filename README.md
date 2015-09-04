@@ -36,7 +36,7 @@ For example, to press left, wait a second, then press right:
     g.macro('test')
       .run()  
   
-Macros can also contain other macros. The following would press left, wait a second, press right, wait a second, press up, wait a second, then press down. :  
+Macros can also contain other macros. The following would press left, wait a second, press right, wait a second, press up, wait a second, then press down:  
 
     g.macro('test1')
       .macro('test').wait(1000)
@@ -48,6 +48,11 @@ Macros can also contain other macros. The following would press left, wait a sec
       .run()
       
   
+A macro can also be repeated:  
+
+    g.macro('test1')
+      .run(true)
+      
 
 #Options  
 path - string, path to gimx.exe  
