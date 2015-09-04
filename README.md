@@ -69,7 +69,7 @@ Add()
 *To be chained with macro()
   
 Run(repeat)  
-boolean repeat - if set to true, repeats the macro after finishing 
+boolean repeat - if set to true, repeats the macro after finishing  
 *To be chained with macro()
   
 Press(button, pressure)  
