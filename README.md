@@ -65,7 +65,7 @@ debug - boolean, prevents sending calls to gimx
 Macro(name)  
 string name - name of the macro  
   
-Add()
+Add()  
 *To be chained with macro()
   
 Run(repeat)  
