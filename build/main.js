@@ -28,16 +28,10 @@ var gimx = (function (_messenger) {
 		this.remote_host = opts.host || this.debug || this.log("No host specified.", 2);
 		this.path = opts.path ? '"' + opts.path + 'gimx.exe"' : 'gimx';
 
-		this.macros = {};
-		this.timeline = {};
-		this.macroStates = {};
-		this.timelineIntervals = [];
-
+		this.resetting = false;
 		this.tempChain = [];
-		this._hasChained = false;
-
-		this.globalTime = 0;
-		this.currentTimelineIndex = 0;
+		this.macros = {};
+		this._reset();
 		this.intervalTime = 10;
 		this.globalCallback = setInterval(function () {
 			self._tick();
@@ -97,6 +91,7 @@ var gimx = (function (_messenger) {
 		key: 'stop',
 		value: function stop() {
 			this.log(this.globalTime / 1000 + 's: Stopping all macros');
+			this.tempChain = [];
 			this._reset();
 		}
 	}, {
@@ -147,7 +142,7 @@ var gimx = (function (_messenger) {
 
 			var self = this;
 			this._reset();
-			this._hasChained = false;
+
 			if (this.tempChain[0][0] !== 'macro' || this.tempChain.length < 1) return;
 			var macroName = this.tempChain[0][1];
 			this.repeat = repeat;
@@ -266,7 +261,9 @@ var gimx = (function (_messenger) {
 			// console.log(this.macroStates);
 			// console.log(this.timelineIntervals);
 			this.globalTotalTime = this.globalTime;
+			this.tempChain = [];
 			this.globalTime = 0;
+			this.resetting = false;
 		}
 	}, {
 		key: '_normalizedSend',
@@ -347,6 +344,7 @@ var gimx = (function (_messenger) {
 	}, {
 		key: '_tick',
 		value: function _tick() {
+			if (this.resetting) return;
 			if (this.globalTime >= this.timelineIntervals[this.currentTimelineIndex]) {
 				var index = this.timelineIntervals[this.currentTimelineIndex].toString();
 
@@ -411,9 +409,11 @@ var gimx = (function (_messenger) {
 	}, {
 		key: '_reset',
 		value: function _reset() {
+			this.resetting = true;
 			this.timeline = {};
-			this.timelineIntervals = [];
 			this.macroStates = {};
+			this.timelineIntervals = [];
+			this._hasChained = false;
 			this.globalTime = 0;
 			this.currentTimelineIndex = 0;
 		}
