@@ -57,6 +57,10 @@ A macro can also be repeated:
 
 #Events  
 
+    g.on('completed-macro-test', function() {
+      //do stuff
+    });
+    
 completed-macro-_name_  
 Emitted when a macro named '_name_' has completed 
   
