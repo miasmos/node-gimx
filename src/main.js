@@ -15,6 +15,7 @@ class gimx extends messenger {
 
 		this.macros = {};
 		this.timeline = {};
+		this.macroStates = {};
 		this.timelineIntervals = [];
 
 		this.tempChain = [];
@@ -71,7 +72,7 @@ class gimx extends messenger {
 	}
 
 	stop() {
-		this.log('Stopping all macros');
+		this.log(`${this.globalTime/1000}s: Stopping all macros`);
 		this._reset();
 	}
 
@@ -98,6 +99,10 @@ class gimx extends messenger {
 		this.log(`Added macro ${macroName} successfully`)
 	}
 
+	isRunning(name) {
+		this.log('Not yet implemented', 2);
+	}
+
 	run(repeat = false) {
 		var self = this;
 		this._reset();
@@ -105,9 +110,6 @@ class gimx extends messenger {
 		if (this.tempChain[0][0] !== 'macro' || this.tempChain.length < 1) return;
 		var macroName = this.tempChain[0][1];
 		this.repeat = repeat;
-
-		this.log(`Running macro ${macroName}`);
-		// console.log(this.macros);
 
 		//parse macro sequence
 		for (var i in this.tempChain) {
@@ -120,24 +122,36 @@ class gimx extends messenger {
 			}
 		}
 
-		parseMacro(this.tempChain, macroName);
 		let lastButton, lastAction;
+		parseMacro(this.tempChain, macroName);
 
-		function parseMacro(macro, name) {
-			let curMacroName = macro[0][1];
-
+		function parseMacro(macro, name, level=0) {
 			for (var i in macro) {
 				let action = macro[i][0];
 				let value1 = macro[i][1];
 				let value2 = macro[i][2];
-				let lastIndex = i == macro.length;
-				let macroCompleted = self._isValidMacro(name) && lastIndex ? name : undefined;
+				let lastIndex = i == macro.length-1;
+				let firstIndex = i == 0;
+
+				//keep track of macro states in timeline
+				let macroCompleted, macroStarted;
+				macroCompleted = self._isValidMacro(name) && lastIndex ? name : undefined;
+				macroStarted = self._isValidMacro(name) && firstIndex ? name : undefined;
+
+				if (macroCompleted) {
+					if (!(self.globalTime in self.macroStates)) {self.macroStates[self.globalTime] = {started: [], completed: []}}
+					if (self.macroStates[self.globalTime]['completed'].indexOf(macroCompleted) == -1) self.macroStates[self.globalTime]['completed'].push(macroCompleted);
+				}
+				if (macroStarted) {
+					if (!(self.globalTime in self.macroStates)) self.macroStates[self.globalTime] = {started: [], completed: []};
+					if (self.macroStates[self.globalTime]['started'].indexOf(macroStarted) == -1) self.macroStates[self.globalTime]['started'].push(macroStarted);
+				}
 
 				if (action == 'macro') {
 					if (!(value1 in self.macros)) {
 						self.log(`Invalid macro ${value1} found in macro ${macroName}`, 2);
 					}
-					parseMacro(self.macros[value1], curMacroName);
+					parseMacro(self.macros[value1], value1, level+1);
 				}
 
 				if (action == 'wait') {
@@ -152,8 +166,7 @@ class gimx extends messenger {
 					let key = {
 						action: 'release',
 						value1: lastButton,
-						value2: value2,
-						complete: macroCompleted
+						value2: value2
 					};
 
 					let tempTime = self.timelineIntervals[self.timelineIntervals.length-1] + 10;
@@ -169,8 +182,7 @@ class gimx extends messenger {
 				let key = {
 					action: action,
 					value1: value1,
-					value2: value2,
-					complete: macroCompleted
+					value2: value2
 				};
 				lastButton = value1;
 				lastAction = action;
@@ -200,7 +212,11 @@ class gimx extends messenger {
 			self.timelineIntervals.push(self.globalTime);
 		}
 
-		console.log(this.timeline);
+		//remove outer-most macro from 0th macrostate index
+		this.macroStates['0']['completed'].splice(0, 1);
+
+		// console.log(this.timeline);
+		// console.log(this.macroStates);
 		// console.log(this.timelineIntervals);
 		this.globalTotalTime = this.globalTime;
 		this.globalTime = 0;
@@ -271,10 +287,11 @@ class gimx extends messenger {
 			eventString += `--event "${button}(${mod})" `;
 		}
 
-		if (!this.debug) {
-			this._exec(`${this.path} ${eventString}-d ${this.remote_host}:${this.remote_port}`);
-		} else {
-			this.log(`${this.globalTime}: ${this.path} ${eventString}-d ${this.remote_host}:${this.remote_port}`);
+		this.log(`${this.globalTime/1000}s: Sending ${stringifyButtons(buttons)}`);
+		this._exec(`${this.path} ${eventString}-d ${this.remote_host}:${this.remote_port}`);
+
+		function stringifyButtons(b) {
+			let ret = ''; for (var i in b) {ret += b[i].button + '(' + b[i].mod + '), '}; return ret.substring(0, ret.length-2);
 		}
 	}
 
@@ -282,15 +299,28 @@ class gimx extends messenger {
 		if (this.globalTime >= this.timelineIntervals[this.currentTimelineIndex]) {
 			var index = this.timelineIntervals[this.currentTimelineIndex].toString();
 
+			//construct send command
 			let temp = [];
 			for (var i in this.timeline[index]) {
 				temp.push({
 					button: this.timeline[index][i]['value1'],
 					mod: this.timeline[index][i]['action'] == 'release' ? 0 : this.timeline[index][i]['value2']
 				});
+			}
 
-				let complete = this.timeline[index][i].complete;
-				if (this.timeline[index][i].complete) this.emit('completed-macro-'+complete);
+			//emit macro start/complete events
+			if (index in this.macroStates) {
+				for (var j in this.macroStates[index]['started']) {
+					let name = this.macroStates[index]['started'][j];
+					this.emit('started-macro-'+name);
+					this.log(`${this.globalTime/1000}s: Started macro ${name}`);
+				}
+
+				for (var j in this.macroStates[index]['completed']) {
+					let name = this.macroStates[index]['completed'][j];
+					this.emit('completed-macro-'+name);
+					this.log(`${this.globalTime/1000}s: Completed macro ${name}`);
+				}
 			}
 
 			this._normalizedSend(temp);
@@ -302,8 +332,8 @@ class gimx extends messenger {
 			if (this.repeat) {
 				this.globalTime = 0;
 				this.currentTimelineIndex = 0;
-				this.log('repeating');
-				this.emit('repeat');
+				this.log('Reached end of top-level macro, repeating');
+				this.emit('repeating-macro');
 				return;
 			} else {
 				this._reset();
@@ -314,20 +344,23 @@ class gimx extends messenger {
 
 	_exec(cmd) {
 		var self = this;
-		exec(cmd, function(e, out, err) {
-			if (e || err) {
-				self.emit('sendfailure');
-				self.log(e || err, 2);
-			}
 
-			self.emit('sendsuccess');
-			self.log(`${self.globalTime}: ${cmd}`);
-		});
+		if (!this.debug) {
+			exec(cmd, function(e, out, err) {
+				if (e || err) {
+					self.emit('sendfailure');
+					self.log(e || err, 2);
+				}
+
+				self.emit('sendsuccess');
+			});
+		}
 	}
 
 	_reset() {
 		this.timeline = {};
 		this.timelineIntervals = [];
+		this.macroStates = {};1
 		this.globalTime = 0;
 		this.currentTimelineIndex = 0;
 	}
