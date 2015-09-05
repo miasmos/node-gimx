@@ -58,7 +58,13 @@ A macro can also be repeated:
 #Events  
 
 completed-macro-_name_  
-Emitted when a macro named '_name_' has completed  
+Emitted when a macro named '_name_' has completed 
+  
+started-macro-_name_  
+Emitted when a macro named '_name_' has started  
+  
+repeated-macro  
+Emitted when the top-level macro has started over, given macro.run(true)  
   
 send-success  
 Emitted when a command is successfully sent to gimx  
