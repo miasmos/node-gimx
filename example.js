@@ -6,33 +6,22 @@ var g = new gimx({
 	debug: true
 });
 
-/*g.on('sendsuccess', function() {
-	console.log('yay!');
+g.on('completed-macro-test', function() {
+	console.log('test complete');
 });
 
-g.on('sendfailure', function() {
-	console.log('aww');
+g.on('started-macro-test', function() {
+	console.log('test started');
 });
 
-g.press('left');*/
+g.macro('leftright')
+	.press('left').press('right').wait(200)
+	.add()
 
-g.macro('left')
-	.press('left').wait(200)
-	.press('left').wait(200)
-	.press('right').wait(200)
-	.press('left').wait(200)
-	.press('left').wait(200)
-	.add();
-
-g.macro('cross')
-	.press('cross').wait(200).release('cross')
-	.add();
-
-g.macro('restartapp')
-	.press('PS').wait(2000)
-	.hold('cross').wait(1000)
-	.press('cross').wait(2500)
+g.macro('test')
+	.macro('leftright')
 	.press('cross')
 	.add();
 
-g.macro('restartapp').run();
+g.macro('test').run();
+

@@ -9,7 +9,6 @@ gulp.task('js', function() {
 	return gulp.src('src/*.js')
 		.pipe(j.on('error', function(e){console.log(e.plugin+": "+e.message); j.end()}))
 		.pipe(b.on('error', function(e){console.log(e.plugin+": "+e.message); b.end()}))
-		.pipe(minify())
 		.pipe(gulp.dest('build'));
 });
 

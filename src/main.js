@@ -2,15 +2,16 @@ var messenger = require('./messenger');
 var exec = require('child_process').exec;
 
 //TODO support for multiple presses in one press/release call, ex. press('up,down') or press('up down')
-//TODO support for emitting events when a macro completes
+//TODO support for checking if a macro is running
 
 class gimx extends messenger {
 	constructor(opts={}) {
 		super();
+		let self = this;
 		this.debug = opts.debug || false;
-		this.remote_port = opts.port || this.log("No port specified.", 2);
-		this.remote_host = opts.host || this.log("No host specified.", 2);
-		this.path = '"' + opts.path + 'gimx.exe"' || 'gimx';
+		this.remote_port = opts.port || this.debug || this.log("No port specified.", 2);
+		this.remote_host = opts.host || this.debug || this.log("No host specified.", 2);
+		this.path = opts.path ? '"' + opts.path + 'gimx.exe"' : 'gimx';
 
 		this.macros = {};
 		this.timeline = {};
@@ -22,7 +23,7 @@ class gimx extends messenger {
 		this.globalTime = 0;
 		this.currentTimelineIndex = 0;
 		this.intervalTime = 10;
-		this.globalCallback;
+		this.globalCallback = setInterval(function(){self._tick()}, this.intervalTime);
 		this.repeat = false;
 		this.log('Init');
 	}
@@ -69,6 +70,11 @@ class gimx extends messenger {
 		return this;
 	}
 
+	stop() {
+		this.log('Stopping all macros');
+		this._reset();
+	}
+
 	add() {
 		this._hasChained = false;
 		if (this.tempChain[0][0] !== 'macro' || this.tempChain.length <= 1) return;
@@ -89,16 +95,19 @@ class gimx extends messenger {
 		}
 		this.macros[macroName] = this.tempChain;
 		this.tempChain = [];
+		this.log(`Added macro ${macroName} successfully`)
 	}
 
 	run(repeat = false) {
 		var self = this;
+		this._reset();
 		this._hasChained = false;
 		if (this.tempChain[0][0] !== 'macro' || this.tempChain.length < 1) return;
 		var macroName = this.tempChain[0][1];
 		this.repeat = repeat;
 
-		console.log(this.macros);
+		this.log(`Running macro ${macroName}`);
+		// console.log(this.macros);
 
 		//parse macro sequence
 		for (var i in this.tempChain) {
@@ -111,20 +120,24 @@ class gimx extends messenger {
 			}
 		}
 
-		parseMacro(this.tempChain);
+		parseMacro(this.tempChain, macroName);
 		let lastButton, lastAction;
 
-		function parseMacro(macro) {
+		function parseMacro(macro, name) {
+			let curMacroName = macro[0][1];
+
 			for (var i in macro) {
 				let action = macro[i][0];
 				let value1 = macro[i][1];
 				let value2 = macro[i][2];
+				let lastIndex = i == macro.length;
+				let macroCompleted = self._isValidMacro(name) && lastIndex ? name : undefined;
 
 				if (action == 'macro') {
 					if (!(value1 in self.macros)) {
 						self.log(`Invalid macro ${value1} found in macro ${macroName}`, 2);
 					}
-					parseMacro(self.macros[value1]);
+					parseMacro(self.macros[value1], curMacroName);
 				}
 
 				if (action == 'wait') {
@@ -139,7 +152,8 @@ class gimx extends messenger {
 					let key = {
 						action: 'release',
 						value1: lastButton,
-						value2: value2
+						value2: value2,
+						complete: macroCompleted
 					};
 
 					let tempTime = self.timelineIntervals[self.timelineIntervals.length-1] + 10;
@@ -156,6 +170,7 @@ class gimx extends messenger {
 					action: action,
 					value1: value1,
 					value2: value2,
+					complete: macroCompleted
 				};
 				lastButton = value1;
 				lastAction = action;
@@ -186,10 +201,9 @@ class gimx extends messenger {
 		}
 
 		console.log(this.timeline);
-		console.log(this.timelineIntervals);
+		// console.log(this.timelineIntervals);
 		this.globalTotalTime = this.globalTime;
 		this.globalTime = 0;
-		this.globalCallback = setInterval(function(){self._tick()}, this.intervalTime);
 	}
 
 	_normalizedSend(buttons) {
@@ -264,14 +278,6 @@ class gimx extends messenger {
 		}
 	}
 
-	_isValidButton(button) {
-		let buttons = ['lstick x', 'lstick y', 'rstick x', 'rstick y', 
-			'acc x', 'acc y', 'acc z', 'gyro', 'select', 'start', 'PS', 'l3', 'r3',
-			'up', 'right', 'down', 'left', 'triangle', 'circle', 'cross', 'square', 'l1', 
-			'r1', 'l2', 'r2'];
-		return buttons.indexOf(button) > -1;
-	}
-
 	_tick() {
 		if (this.globalTime >= this.timelineIntervals[this.currentTimelineIndex]) {
 			var index = this.timelineIntervals[this.currentTimelineIndex].toString();
@@ -282,6 +288,9 @@ class gimx extends messenger {
 					button: this.timeline[index][i]['value1'],
 					mod: this.timeline[index][i]['action'] == 'release' ? 0 : this.timeline[index][i]['value2']
 				});
+
+				let complete = this.timeline[index][i].complete;
+				if (this.timeline[index][i].complete) this.emit('completed-macro-'+complete);
 			}
 
 			this._normalizedSend(temp);
@@ -297,26 +306,10 @@ class gimx extends messenger {
 				this.emit('repeat');
 				return;
 			} else {
-				clearInterval(this.globalCallback);
-				this.log('done');
+				this._reset();
 			}
 		}
 		this.globalTime += this.intervalTime;
-	}
-
-	_hasMultipleButtons(buttons, pressed=true) {
-		let temp;
-		let ret = [];
-		if (buttons.indexOf(',') > -1) temp = buttons.split(',');
-		else if (buttons.indexOf(' ') > -1) temp = buttons.split(' ');
-		else return false;
-
-		for (var i in temp) {
-			ret.push({
-				button: temp[i],
-				mod: pressed ? 1 : 0
-			});
-		}
 	}
 
 	_exec(cmd) {
@@ -330,6 +323,13 @@ class gimx extends messenger {
 			self.emit('sendsuccess');
 			self.log(`${self.globalTime}: ${cmd}`);
 		});
+	}
+
+	_reset() {
+		this.timeline = {};
+		this.timelineIntervals = [];
+		this.globalTime = 0;
+		this.currentTimelineIndex = 0;
 	}
 
 	log(msg, level) {
@@ -347,6 +347,38 @@ class gimx extends messenger {
 
 		if (level == "ERROR") throw "gimx-node: "+msg;
 		console.log(level ? "gimx-node: "+ level + " " + msg : "gimx-node: " + msg);
+	}
+
+	_isValidButton(button) {
+		let buttons = ['lstick x', 'lstick y', 'rstick x', 'rstick y', 
+			'acc x', 'acc y', 'acc z', 'gyro', 'select', 'start', 'PS', 'l3', 'r3',
+			'up', 'right', 'down', 'left', 'triangle', 'circle', 'cross', 'square', 'l1', 
+			'r1', 'l2', 'r2'];
+		return buttons.indexOf(button) > -1;
+	}
+
+	_isValidMacro(name) {
+		for (var i in this.macros) {
+			if (name == i) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	_hasMultipleButtons(buttons, pressed=true) {
+		let temp;
+		let ret = [];
+		if (buttons.indexOf(',') > -1) temp = buttons.split(',');
+		else if (buttons.indexOf(' ') > -1) temp = buttons.split(' ');
+		else return false;
+
+		for (var i in temp) {
+			ret.push({
+				button: temp[i],
+				mod: pressed ? 1 : 0
+			});
+		}
 	}
 }
 
