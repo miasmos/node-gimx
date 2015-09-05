@@ -216,7 +216,7 @@ var gimx = (function (_messenger) {
 							value2: value2
 						};
 
-						var tempTime = self.timelineIntervals[self.timelineIntervals.length - 1] + 10;
+						var tempTime = self.timelineIntervals[self.timelineIntervals.length - 1] + 20;
 
 						if (tempTime in self.timeline) {
 							self.timeline[tempTime].push(_key);
@@ -413,7 +413,7 @@ var gimx = (function (_messenger) {
 		value: function _reset() {
 			this.timeline = {};
 			this.timelineIntervals = [];
-			this.macroStates = {};1;
+			this.macroStates = {};
 			this.globalTime = 0;
 			this.currentTimelineIndex = 0;
 		}

@@ -177,7 +177,7 @@ class gimx extends messenger {
 						value2: value2
 					};
 
-					let tempTime = self.timelineIntervals[self.timelineIntervals.length-1] + 10;
+					let tempTime = self.timelineIntervals[self.timelineIntervals.length-1] + 20;
 
 					if (tempTime in self.timeline) {
 						self.timeline[tempTime].push(key);
@@ -368,7 +368,7 @@ class gimx extends messenger {
 	_reset() {
 		this.timeline = {};
 		this.timelineIntervals = [];
-		this.macroStates = {};1
+		this.macroStates = {};
 		this.globalTime = 0;
 		this.currentTimelineIndex = 0;
 	}
