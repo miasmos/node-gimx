@@ -96,7 +96,12 @@ boolean repeat - if set to true, repeats the macro after finishing
 
 Stop()  
 Stops all running macros and clears the action queue
-*To be chained with macro()
+*To be chained with macro()  
+  
+isRunning(name)  
+string name - name of the macro  
+Returns true if macro named _name_ is currently running  
+*To be chained with macro()  
   
 Press(button, pressure)  
 string button - a valid button  
