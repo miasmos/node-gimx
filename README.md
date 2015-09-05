@@ -92,7 +92,7 @@ Add()
   
 Run(repeat)  
 boolean repeat - if set to true, repeats the macro after finishing  
-*To be chained with macro()
+*To be chained with macro()  
 
 Stop()  
 Stops all running macros and clears the action queue
