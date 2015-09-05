@@ -3,7 +3,8 @@ Send commands to gimx via js. Currently, only Playstation is supported.
   
   
 #Quickstart  
-    var gimx = require('./main.js');  
+
+    var gimx = require('node-gimx');  
     var g = new gimx({
     	path: 'C:\\Program Files\\GIMX\\',
     	host: '127.0.0.1',
@@ -54,6 +55,17 @@ A macro can also be repeated:
       .run(true)
       
 
+#Events  
+
+completed-macro-_name_  
+Emitted when a macro named '_name_' has completed  
+  
+send-success  
+Emitted when a command is successfully sent to gimx  
+  
+send-failure  
+Emitted when a command fails to be sent to gimx
+  
 #Options  
 path - string, path to gimx.exe  
 host - string, host of remote gimx  
@@ -70,6 +82,10 @@ Add()
   
 Run(repeat)  
 boolean repeat - if set to true, repeats the macro after finishing  
+*To be chained with macro()
+
+Stop()  
+Stops all running macros and clears the action queue
 *To be chained with macro()
   
 Press(button, pressure)  
