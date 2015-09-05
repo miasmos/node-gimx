@@ -333,7 +333,7 @@ class gimx extends messenger {
 				this.globalTime = 0;
 				this.currentTimelineIndex = 0;
 				this.log('Reached end of top-level macro, repeating');
-				this.emit('repeating-macro');
+				this.emit('repeated-macro');
 				return;
 			} else {
 				this._reset();
