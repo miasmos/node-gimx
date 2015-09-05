@@ -19,9 +19,15 @@ g.macro('leftright')
 	.add()
 
 g.macro('test')
-	.macro('leftright')
+	.macro('leftright').wait(3400)
 	.press('cross')
 	.add();
 
 g.macro('test').run();
+
+setTimeout(
+	function(){
+		console.log(g.isRunning('test'));
+	}
+, 3000);
 

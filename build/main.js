@@ -12,7 +12,6 @@ var messenger = require('./messenger');
 var exec = require('child_process').exec;
 
 //TODO support for multiple presses in one press/release call, ex. press('up,down') or press('up down')
-//TODO support for checking if a macro is running
 
 var gimx = (function (_messenger) {
 	_inherits(gimx, _messenger);
@@ -127,7 +126,19 @@ var gimx = (function (_messenger) {
 	}, {
 		key: 'isRunning',
 		value: function isRunning(name) {
-			this.log('Not yet implemented', 2);
+			if (!(name in this.macros)) return false;
+			var started = undefined,
+			    ended = undefined;
+
+			for (var i in this.macroStates) {
+				if (this.macroStates[i]['started'].indexOf(name) > -1) started = i;
+				if (this.macroStates[i]['completed'].indexOf(name) > -1) {
+					ended = i;break;
+				}
+			}
+
+			if (this.globalTime > started && this.globalTime < ended) return true;
+			return false;
 		}
 	}, {
 		key: 'run',
