@@ -3,6 +3,7 @@ Send commands to gimx via js. Currently, only Playstation is supported.
   
   
 #Quickstart  
+
     var gimx = require('node-gimx');  
     var g = new gimx({
     	path: 'C:\\Program Files\\GIMX\\',
