@@ -10,11 +10,26 @@
     "gimx"
   ],
   "author": "Stephen Poole",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "gulp": "^3.9.0",
     "gulp-babel": "^5.2.1",
     "gulp-jshint": "^1.11.2",
     "gulp-minify": "0.0.5"
-  }
+  },
+  "dependencies": {
+    "gulp-jshint": "^1.11.2",
+    "gulp": "^3.9.0",
+    "gulp-minify": "^0.0.5",
+    "gulp-babel": "^5.2.1",
+    "gulp-strip-debug": "^1.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stephenpoole/node-gimx.git"
+  },
+  "bugs": {
+    "url": "https://github.com/stephenpoole/node-gimx/issues"
+  },
+  "homepage": "https://github.com/stephenpoole/node-gimx#readme"
 }
