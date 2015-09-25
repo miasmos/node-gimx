@@ -1,6 +1,7 @@
+[![npm version](https://badge.fury.io/js/node-gimx.svg)](http://badge.fury.io/js/node-gimx)
+  
 # node-gimx
 Send commands to gimx via js. Currently, only Playstation is supported.  
-  
   
 #Quickstart  
 
